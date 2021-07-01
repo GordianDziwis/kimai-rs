@@ -58,6 +58,13 @@ fn main() {
                         .multiple(true)
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("timesheet")
+                .author(crate_authors!())
+                .version(crate_version!())
+                .about("Interact with the time sheet.")
+                .arg(&config_path_arg),
+            )
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("customers") {
@@ -90,5 +97,10 @@ fn main() {
             matches.value_of("term").map(|t| t.to_string()),
         )
         .unwrap();
+    }
+
+    if let Some(matches) = matches.subcommand_matches("timesheet") {
+        println!("{:#?}", matches);
+        kimai::print_timesheet(matches.value_of("config_path").map(|p| p.to_string())).unwrap();
     }
 }

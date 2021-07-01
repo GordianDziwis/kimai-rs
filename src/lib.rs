@@ -1,3 +1,4 @@
+use chrono::prelude::*;
 use clap::crate_name;
 use prettytable::{cell, format, row, Table};
 use reqwest::header::{self, HeaderName, HeaderValue};
@@ -326,5 +327,30 @@ pub fn print_activities(
 
     table.printstd();
 
+    Ok(())
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TimesheetRecord {
+    id: usize,
+    description: Option<String>,
+    begin: DateTime<Local>,
+    end: Option<DateTime<Local>>,
+    duration: u32,
+    project: usize,
+    activity: usize,
+    user: usize,
+    tags: Vec<String>,
+}
+
+pub fn get_timesheet(config: &Config) -> Result<Vec<TimesheetRecord>, KimaiError> {
+    let response = make_get_request(config, "api/timesheets", None)?;
+    Ok(response.json::<Vec<TimesheetRecord>>()?)
+}
+
+pub fn print_timesheet(config_path: Option<String>) -> Result<(), KimaiError> {
+    let config = load_config(config_path)?;
+    let timesheet_records = get_timesheet(&config)?;
+    println!("{:#?}", timesheet_records);
     Ok(())
 }
