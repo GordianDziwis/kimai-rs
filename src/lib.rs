@@ -27,6 +27,12 @@ impl QueryValue for &str {
     }
 }
 
+impl QueryValue for String {
+    fn process(&self) -> String {
+        self.to_string()
+    }
+}
+
 macro_rules! query{
     ($(($key:expr, $value:expr)),*) => {{
         let mut queries = HashMap::new();
@@ -197,14 +203,17 @@ pub struct Customer {
     color: String,
 }
 
-pub fn get_customers(config: &Config) -> Result<Vec<Customer>, KimaiError> {
-    let response = make_get_request(config, "api/customers", None)?;
+pub fn get_customers(config: &Config, term: Option<String>) -> Result<Vec<Customer>, KimaiError> {
+    let response = make_get_request(config, "api/customers", query!(("term", term)))?;
     Ok(response.json::<Vec<Customer>>()?)
 }
 
-pub fn print_customers(config_path: Option<String>) -> Result<(), KimaiError> {
+pub fn print_customers(
+    config_path: Option<String>,
+    term: Option<String>,
+) -> Result<(), KimaiError> {
     let config = load_config(config_path)?;
-    let customers = get_customers(&config)?;
+    let customers = get_customers(&config, term)?;
 
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
@@ -232,17 +241,23 @@ pub struct Project {
 pub fn get_projects(
     config: &Config,
     customers: Option<Vec<usize>>,
+    term: Option<String>,
 ) -> Result<Vec<Project>, KimaiError> {
-    let response = make_get_request(config, "api/projects", query!(("customers", customers)))?;
+    let response = make_get_request(
+        config,
+        "api/projects",
+        query!(("customers", customers), ("term", term)),
+    )?;
     Ok(response.json::<Vec<Project>>()?)
 }
 
 pub fn print_projects(
     config_path: Option<String>,
     customers: Option<Vec<usize>>,
+    term: Option<String>,
 ) -> Result<(), KimaiError> {
     let config = load_config(config_path)?;
-    let projects = get_projects(&config, customers)?;
+    let projects = get_projects(&config, customers, term)?;
 
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
@@ -275,17 +290,23 @@ pub struct Activity {
 pub fn get_activities(
     config: &Config,
     projects: Option<Vec<usize>>,
+    term: Option<String>,
 ) -> Result<Vec<Activity>, KimaiError> {
-    let response = make_get_request(config, "api/activities", query!(("projects", projects)))?;
+    let response = make_get_request(
+        config,
+        "api/activities",
+        query!(("projects", projects), ("term", term)),
+    )?;
     Ok(response.json::<Vec<Activity>>()?)
 }
 
 pub fn print_activities(
     config_path: Option<String>,
     projects: Option<Vec<usize>>,
+    term: Option<String>,
 ) -> Result<(), KimaiError> {
     let config = load_config(config_path)?;
-    let activities = get_activities(&config, projects)?;
+    let activities = get_activities(&config, projects, term)?;
 
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);

@@ -8,6 +8,12 @@ fn main() {
         .help("Path to a config file")
         .takes_value(true);
 
+    let term_arg = Arg::with_name("term")
+        .long("term")
+        .short("t")
+        .takes_value(true)
+        .help("A free search term");
+
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!())
@@ -17,7 +23,8 @@ fn main() {
                 .author(crate_authors!())
                 .version(crate_version!())
                 .about("Get a list of all customers")
-                .arg(&config_path_arg),
+                .arg(&config_path_arg)
+                .arg(&term_arg),
         )
         .subcommand(
             SubCommand::with_name("projects")
@@ -25,6 +32,7 @@ fn main() {
                 .version(crate_version!())
                 .about("Get a list of all projects")
                 .arg(&config_path_arg)
+                .arg(&term_arg)
                 .arg(
                     Arg::with_name("customers")
                         .short("c")
@@ -40,6 +48,7 @@ fn main() {
                 .version(crate_version!())
                 .about("Get a list of all activities")
                 .arg(&config_path_arg)
+                .arg(&term_arg)
                 .arg(
                     Arg::with_name("projects")
                         .short("p")
@@ -52,7 +61,11 @@ fn main() {
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("customers") {
-        kimai::print_customers(matches.value_of("config_path").map(|p| p.to_string())).unwrap();
+        kimai::print_customers(
+            matches.value_of("config_path").map(|p| p.to_string()),
+            matches.value_of("term").map(|t| t.to_string()),
+        )
+        .unwrap();
     }
 
     if let Some(matches) = matches.subcommand_matches("projects") {
@@ -62,6 +75,7 @@ fn main() {
                 true => Some(values_t!(matches, "customers", usize).unwrap_or_else(|e| e.exit())),
                 false => None,
             },
+            matches.value_of("term").map(|t| t.to_string()),
         )
         .unwrap();
     }
@@ -73,6 +87,7 @@ fn main() {
                 true => Some(values_t!(matches, "projects", usize).unwrap_or_else(|e| e.exit())),
                 false => None,
             },
+            matches.value_of("term").map(|t| t.to_string()),
         )
         .unwrap();
     }
