@@ -2,10 +2,44 @@ use clap::crate_name;
 use prettytable::{cell, format, row, Table};
 use reqwest::header::{self, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+
+trait QueryValue {
+    fn process(&self) -> String;
+}
+
+impl QueryValue for Vec<usize> {
+    fn process(&self) -> String {
+        self.iter()
+            .map(|i| i.to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    }
+}
+
+impl QueryValue for &str {
+    fn process(&self) -> String {
+        self.to_string()
+    }
+}
+
+macro_rules! query{
+    ($(($key:expr, $value:expr)),*) => {{
+        let mut queries = HashMap::new();
+        $(if let Some(v) = $value {
+            queries.insert($key, QueryValue::process(&v));
+        };)*
+        if queries.is_empty() {
+            None
+        } else {
+            Some(queries)
+        }
+    }}
+}
 
 #[derive(Debug)]
 pub enum KimaiError {
@@ -135,13 +169,24 @@ fn get_headers(config: &Config) -> Result<header::HeaderMap, KimaiError> {
 fn make_get_request(
     config: &Config,
     api_endpoint: &str,
+    parameters: Option<HashMap<&str, String>>,
 ) -> Result<reqwest::blocking::Response, KimaiError> {
     let url = format!("{}/{}", config.host, api_endpoint);
-    let client = reqwest::blocking::Client::builder()
+    let mut request_builder = reqwest::blocking::Client::builder()
         .default_headers(get_headers(config)?)
-        .build()
-        .unwrap();
-    Ok(client.get(&url).send()?)
+        .build()?
+        .get(&url);
+    if let Some(p) = parameters {
+        request_builder = request_builder.query(&p);
+    }
+    Ok(request_builder.send()?)
+}
+
+fn load_config(config_path: Option<String>) -> Result<Config, KimaiError> {
+    match config_path {
+        Some(p) => Config::from_path(Path::new(&p)),
+        None => Config::from_xdg(),
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -152,24 +197,110 @@ pub struct Customer {
     color: String,
 }
 
-pub fn get_customers(config_path: Option<String>) -> Result<Vec<Customer>, KimaiError> {
-    let config = match config_path {
-        Some(p) => Config::from_path(Path::new(&p)),
-        None => Config::from_xdg(),
-    }?;
-
-    let response = make_get_request(&config, "api/customers")?;
+pub fn get_customers(config: &Config) -> Result<Vec<Customer>, KimaiError> {
+    let response = make_get_request(config, "api/customers", None)?;
     Ok(response.json::<Vec<Customer>>()?)
 }
 
 pub fn print_customers(config_path: Option<String>) -> Result<(), KimaiError> {
-    let customers = get_customers(config_path)?;
+    let config = load_config(config_path)?;
+    let customers = get_customers(&config)?;
 
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
     table.set_titles(row!["ID", "Name"]);
     for customer in customers {
         table.add_row(row![customer.id, customer.name]);
+    }
+
+    table.printstd();
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Project {
+    id: usize,
+    name: String,
+    customer: usize,
+    parent_title: String,
+    visible: bool,
+    color: Option<String>,
+}
+
+pub fn get_projects(
+    config: &Config,
+    customers: Option<Vec<usize>>,
+) -> Result<Vec<Project>, KimaiError> {
+    let response = make_get_request(config, "api/projects", query!(("customers", customers)))?;
+    Ok(response.json::<Vec<Project>>()?)
+}
+
+pub fn print_projects(
+    config_path: Option<String>,
+    customers: Option<Vec<usize>>,
+) -> Result<(), KimaiError> {
+    let config = load_config(config_path)?;
+    let projects = get_projects(&config, customers)?;
+
+    let mut table = Table::new();
+    table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    table.set_titles(row!["ID", "Name", "Customer ID", "Customer Name"]);
+    for project in projects {
+        table.add_row(row![
+            r->project.id,
+            project.name,
+            r->project.customer,
+            project.parent_title
+        ]);
+    }
+
+    table.printstd();
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Activity {
+    id: usize,
+    name: String,
+    project: Option<usize>,
+    parent_title: Option<String>,
+    visible: bool,
+    color: Option<String>,
+}
+
+pub fn get_activities(
+    config: &Config,
+    projects: Option<Vec<usize>>,
+) -> Result<Vec<Activity>, KimaiError> {
+    let response = make_get_request(config, "api/activities", query!(("projects", projects)))?;
+    Ok(response.json::<Vec<Activity>>()?)
+}
+
+pub fn print_activities(
+    config_path: Option<String>,
+    projects: Option<Vec<usize>>,
+) -> Result<(), KimaiError> {
+    let config = load_config(config_path)?;
+    let activities = get_activities(&config, projects)?;
+
+    let mut table = Table::new();
+    table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    table.set_titles(row!["ID", "Name", "Project ID", "Project Name"]);
+    for activity in activities {
+        let project_str = match activity.project {
+            Some(p) => p.to_string(),
+            None => "".to_string(),
+        };
+        table.add_row(row![
+            r->activity.id,
+            activity.name,
+            r->project_str,
+            activity.parent_title.unwrap_or_default()
+        ]);
     }
 
     table.printstd();
