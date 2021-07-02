@@ -1,3 +1,5 @@
+[![Workflow Status](https://github.com/scattenlaeufer/kimai-rs/workflows/Rust%20checks/badge.svg)](https://github.com/scattenlaeufer/kimai-rs/actions?query=workflow%3A%22Rust+checks%22)
+
 # kimai-rs
 
 A client for the REST API of [Kimai](https://www.kimai.org/)
