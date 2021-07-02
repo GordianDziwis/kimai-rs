@@ -173,20 +173,20 @@ fn get_headers(config: &Config) -> Result<header::HeaderMap, KimaiError> {
     Ok(headers)
 }
 
-fn make_get_request(
+async fn make_get_request(
     config: &Config,
     api_endpoint: &str,
     parameters: Option<HashMap<&str, String>>,
-) -> Result<reqwest::blocking::Response, KimaiError> {
+) -> Result<reqwest::Response, KimaiError> {
     let url = format!("{}/{}", config.host, api_endpoint);
-    let mut request_builder = reqwest::blocking::Client::builder()
+    let mut request_builder = reqwest::Client::builder()
         .default_headers(get_headers(config)?)
         .build()?
         .get(&url);
     if let Some(p) = parameters {
         request_builder = request_builder.query(&p);
     }
-    Ok(request_builder.send()?)
+    Ok(request_builder.send().await?)
 }
 
 fn load_config(config_path: Option<String>) -> Result<Config, KimaiError> {
@@ -204,17 +204,21 @@ pub struct Customer {
     color: String,
 }
 
-pub fn get_customers(config: &Config, term: Option<String>) -> Result<Vec<Customer>, KimaiError> {
-    let response = make_get_request(config, "api/customers", query!(("term", term)))?;
-    Ok(response.json::<Vec<Customer>>()?)
+pub async fn get_customers(
+    config: &Config,
+    term: Option<String>,
+) -> Result<Vec<Customer>, KimaiError> {
+    let response = make_get_request(config, "api/customers", query!(("term", term))).await?;
+    Ok(response.json::<Vec<Customer>>().await?)
 }
 
-pub fn print_customers(
+#[tokio::main]
+pub async fn print_customers(
     config_path: Option<String>,
     term: Option<String>,
 ) -> Result<(), KimaiError> {
     let config = load_config(config_path)?;
-    let customers = get_customers(&config, term)?;
+    let customers = get_customers(&config, term).await?;
 
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
@@ -239,7 +243,7 @@ pub struct Project {
     color: Option<String>,
 }
 
-pub fn get_projects(
+pub async fn get_projects(
     config: &Config,
     customers: Option<Vec<usize>>,
     term: Option<String>,
@@ -248,17 +252,19 @@ pub fn get_projects(
         config,
         "api/projects",
         query!(("customers", customers), ("term", term)),
-    )?;
-    Ok(response.json::<Vec<Project>>()?)
+    )
+    .await?;
+    Ok(response.json::<Vec<Project>>().await?)
 }
 
-pub fn print_projects(
+#[tokio::main]
+pub async fn print_projects(
     config_path: Option<String>,
     customers: Option<Vec<usize>>,
     term: Option<String>,
 ) -> Result<(), KimaiError> {
     let config = load_config(config_path)?;
-    let projects = get_projects(&config, customers, term)?;
+    let projects = get_projects(&config, customers, term).await?;
 
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
@@ -288,7 +294,7 @@ pub struct Activity {
     color: Option<String>,
 }
 
-pub fn get_activities(
+pub async fn get_activities(
     config: &Config,
     projects: Option<Vec<usize>>,
     term: Option<String>,
@@ -297,17 +303,19 @@ pub fn get_activities(
         config,
         "api/activities",
         query!(("projects", projects), ("term", term)),
-    )?;
-    Ok(response.json::<Vec<Activity>>()?)
+    )
+    .await?;
+    Ok(response.json::<Vec<Activity>>().await?)
 }
 
-pub fn print_activities(
+#[tokio::main]
+pub async fn print_activities(
     config_path: Option<String>,
     projects: Option<Vec<usize>>,
     term: Option<String>,
 ) -> Result<(), KimaiError> {
     let config = load_config(config_path)?;
-    let activities = get_activities(&config, projects, term)?;
+    let activities = get_activities(&config, projects, term).await?;
 
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
@@ -343,14 +351,15 @@ pub struct TimesheetRecord {
     tags: Vec<String>,
 }
 
-pub fn get_timesheet(config: &Config) -> Result<Vec<TimesheetRecord>, KimaiError> {
-    let response = make_get_request(config, "api/timesheets", None)?;
-    Ok(response.json::<Vec<TimesheetRecord>>()?)
+pub async fn get_timesheet(config: &Config) -> Result<Vec<TimesheetRecord>, KimaiError> {
+    let response = make_get_request(config, "api/timesheets", None).await?;
+    Ok(response.json::<Vec<TimesheetRecord>>().await?)
 }
 
-pub fn print_timesheet(config_path: Option<String>) -> Result<(), KimaiError> {
+#[tokio::main]
+pub async fn print_timesheet(config_path: Option<String>) -> Result<(), KimaiError> {
     let config = load_config(config_path)?;
-    let timesheet_records = get_timesheet(&config)?;
+    let timesheet_records = get_timesheet(&config).await?;
     println!("{:#?}", timesheet_records);
     Ok(())
 }
