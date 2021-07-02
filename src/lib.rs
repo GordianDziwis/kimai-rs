@@ -34,6 +34,12 @@ impl QueryValue for String {
     }
 }
 
+impl QueryValue for usize {
+    fn process(&self) -> String {
+        self.to_string()
+    }
+}
+
 macro_rules! query{
     ($(($key:expr, $value:expr)),*) => {{
         let mut queries = HashMap::new();
@@ -344,22 +350,79 @@ pub struct TimesheetRecord {
     description: Option<String>,
     begin: DateTime<Local>,
     end: Option<DateTime<Local>>,
-    duration: u32,
+    duration: i64,
     project: usize,
     activity: usize,
     user: usize,
     tags: Vec<String>,
 }
 
-pub async fn get_timesheet(config: &Config) -> Result<Vec<TimesheetRecord>, KimaiError> {
-    let response = make_get_request(config, "api/timesheets", None).await?;
+pub async fn get_timesheet(
+    config: &Config,
+    user: Option<usize>,
+    customers: Option<Vec<usize>>,
+    projects: Option<Vec<usize>>,
+    activities: Option<Vec<usize>>,
+) -> Result<Vec<TimesheetRecord>, KimaiError> {
+    let response = make_get_request(
+        config,
+        "api/timesheets",
+        query!(
+            ("user", user),
+            ("customers", customers),
+            ("projects", projects),
+            ("activities", activities)
+        ),
+    )
+    .await?;
     Ok(response.json::<Vec<TimesheetRecord>>().await?)
 }
 
 #[tokio::main]
-pub async fn print_timesheet(config_path: Option<String>) -> Result<(), KimaiError> {
+pub async fn print_timesheet(
+    config_path: Option<String>,
+    user: Option<usize>,
+    customers: Option<Vec<usize>>,
+    projects: Option<Vec<usize>>,
+    activities: Option<Vec<usize>>,
+) -> Result<(), KimaiError> {
     let config = load_config(config_path)?;
-    let timesheet_records = get_timesheet(&config).await?;
-    println!("{:#?}", timesheet_records);
+    let timesheet_records = get_timesheet(&config, user, customers, projects, activities).await?;
+
+    let mut table = Table::new();
+    table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    table.set_titles(row![
+        "ID",
+        "Begin",
+        "End",
+        "Duration",
+        "Project",
+        "Activity",
+        "Description"
+    ]);
+    for record in timesheet_records {
+        let description = match record.description {
+            Some(d) => d.to_string(),
+            None => "".to_string(),
+        };
+        let end = match record.end {
+            Some(e) => e.format("%Y-%m-%d %H:%M").to_string(),
+            None => "".to_string(),
+        };
+        let d = chrono::Duration::seconds(record.duration);
+        let d_str = format!("{}:{:02}", d.num_hours(), d.num_minutes() % 60);
+        table.add_row(row![
+            r->record.id,
+            record.begin.format("%Y-%m-%d %H:%M"),
+            end,
+            r->d_str,
+            r->record.project,
+            r->record.activity,
+            description,
+        ]);
+    }
+
+    table.printstd();
+
     Ok(())
 }
