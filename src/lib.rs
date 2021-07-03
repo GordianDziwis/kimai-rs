@@ -195,11 +195,14 @@ fn check_response(response: reqwest::Response) -> Result<reqwest::Response, Kima
     }
 }
 
-async fn make_get_request(
+async fn make_get_request<T>(
     config: &Config,
     api_endpoint: &str,
     parameters: Option<HashMap<&str, String>>,
-) -> Result<reqwest::Response, KimaiError> {
+) -> Result<T, KimaiError>
+where
+    T: for<'de> Deserialize<'de>,
+{
     let url = format!("{}/{}", config.host, api_endpoint);
     let mut request_builder = reqwest::Client::builder()
         .default_headers(get_headers(config)?)
@@ -208,7 +211,9 @@ async fn make_get_request(
     if let Some(p) = parameters {
         request_builder = request_builder.query(&p);
     }
-    Ok(check_response(request_builder.send().await?)?)
+    Ok(check_response(request_builder.send().await?)?
+        .json()
+        .await?)
 }
 
 fn load_config(config_path: Option<String>) -> Result<Config, KimaiError> {
@@ -230,8 +235,7 @@ pub async fn get_customers(
     config: &Config,
     term: Option<String>,
 ) -> Result<Vec<Customer>, KimaiError> {
-    let response = make_get_request(config, "api/customers", query!(("term", term))).await?;
-    Ok(response.json::<Vec<Customer>>().await?)
+    make_get_request(config, "api/customers", query!(("term", term))).await
 }
 
 #[tokio::main]
@@ -270,13 +274,12 @@ pub async fn get_projects(
     customers: Option<Vec<usize>>,
     term: Option<String>,
 ) -> Result<Vec<Project>, KimaiError> {
-    let response = make_get_request(
+    make_get_request(
         config,
         "api/projects",
         query!(("customers", customers), ("term", term)),
     )
-    .await?;
-    Ok(response.json::<Vec<Project>>().await?)
+    .await
 }
 
 #[tokio::main]
@@ -321,13 +324,12 @@ pub async fn get_activities(
     projects: Option<Vec<usize>>,
     term: Option<String>,
 ) -> Result<Vec<Activity>, KimaiError> {
-    let response = make_get_request(
+    make_get_request(
         config,
         "api/activities",
         query!(("projects", projects), ("term", term)),
     )
-    .await?;
-    Ok(response.json::<Vec<Activity>>().await?)
+    .await
 }
 
 #[tokio::main]
@@ -381,7 +383,7 @@ pub async fn get_timesheet(
     activities: Option<Vec<usize>>,
 ) -> Result<Vec<TimesheetRecord>, KimaiError> {
     // TODO: Implemnt this to get the entire timesheet records
-    let response = make_get_request(
+    make_get_request(
         config,
         "api/timesheets",
         query!(
@@ -391,8 +393,7 @@ pub async fn get_timesheet(
             ("activities", activities)
         ),
     )
-    .await?;
-    Ok(response.json::<Vec<TimesheetRecord>>().await?)
+    .await
 }
 
 #[tokio::main]
