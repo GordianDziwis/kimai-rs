@@ -62,6 +62,7 @@ pub enum KimaiError {
     Utf8(String),
     Reqwest(String),
     Config(String),
+    Api(String),
     Other(String),
 }
 
@@ -76,6 +77,7 @@ impl fmt::Display for KimaiError {
             KimaiError::Utf8(e) => write!(f, "UTF-8 Error: {}", e),
             KimaiError::Reqwest(e) => write!(f, "Reqwest Error: {}", e),
             KimaiError::Config(e) => write!(f, "Config Error: {}", e),
+            KimaiError::Api(e) => write!(f, "API Error: {}", e),
             KimaiError::Other(e) => write!(f, "Error: {}", e),
         }
     }
@@ -179,6 +181,20 @@ fn get_headers(config: &Config) -> Result<header::HeaderMap, KimaiError> {
     Ok(headers)
 }
 
+fn check_response(response: reqwest::Response) -> Result<reqwest::Response, KimaiError> {
+    if response.status().is_success() {
+        Ok(response)
+    } else {
+        Err(KimaiError::Api(
+            response
+                .status()
+                .canonical_reason()
+                .unwrap_or("Error communicationg with Kimai")
+                .to_string(),
+        ))
+    }
+}
+
 async fn make_get_request(
     config: &Config,
     api_endpoint: &str,
@@ -192,7 +208,7 @@ async fn make_get_request(
     if let Some(p) = parameters {
         request_builder = request_builder.query(&p);
     }
-    Ok(request_builder.send().await?)
+    Ok(check_response(request_builder.send().await?)?)
 }
 
 fn load_config(config_path: Option<String>) -> Result<Config, KimaiError> {
@@ -364,6 +380,7 @@ pub async fn get_timesheet(
     projects: Option<Vec<usize>>,
     activities: Option<Vec<usize>>,
 ) -> Result<Vec<TimesheetRecord>, KimaiError> {
+    // TODO: Implemnt this to get the entire timesheet records
     let response = make_get_request(
         config,
         "api/timesheets",
