@@ -9,6 +9,9 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+pub const DATETIME_FORMAT: &str = "%Y-%m-%d %H:%M";
+pub const TIME_FORMAT: &str = "%H:%M";
+
 trait QueryValue {
     fn process(&self) -> String;
 }
@@ -61,6 +64,7 @@ pub enum KimaiError {
     Toml(String),
     Utf8(String),
     Reqwest(String),
+    ChronoParse(String),
     Config(String),
     Api(String),
     Other(String),
@@ -76,6 +80,7 @@ impl fmt::Display for KimaiError {
             KimaiError::Toml(e) => write!(f, "TOML Error: {}", e),
             KimaiError::Utf8(e) => write!(f, "UTF-8 Error: {}", e),
             KimaiError::Reqwest(e) => write!(f, "Reqwest Error: {}", e),
+            KimaiError::ChronoParse(e) => write!(f, "Chrono Parser Error: {}", e),
             KimaiError::Config(e) => write!(f, "Config Error: {}", e),
             KimaiError::Api(e) => write!(f, "API Error: {}", e),
             KimaiError::Other(e) => write!(f, "Error: {}", e),
@@ -110,6 +115,12 @@ impl From<std::str::Utf8Error> for KimaiError {
 impl From<reqwest::Error> for KimaiError {
     fn from(error: reqwest::Error) -> KimaiError {
         KimaiError::Reqwest(error.to_string())
+    }
+}
+
+impl From<chrono::format::ParseError> for KimaiError {
+    fn from(error: chrono::format::ParseError) -> KimaiError {
+        KimaiError::ChronoParse(error.to_string())
     }
 }
 
@@ -445,6 +456,16 @@ pub async fn print_timesheet(
     Ok(())
 }
 
+fn str_to_datetime(date_str: &str) -> Result<DateTime<Local>, KimaiError> {
+    match NaiveDateTime::parse_from_str(date_str, DATETIME_FORMAT) {
+        Ok(d) => Ok(Local.from_local_datetime(&d).unwrap()),
+        Err(_) => match NaiveTime::parse_from_str(date_str, TIME_FORMAT) {
+            Ok(t) => Ok(Local::today().and_time(t).unwrap()),
+            Err(e) => Err(KimaiError::from(e)),
+        },
+    }
+}
+
 pub async fn begin_timesheet_record(
     config: Config,
     user: usize,
@@ -467,7 +488,13 @@ pub async fn print_begin_timesheet_record(
     description: Option<String>,
 ) -> Result<(), KimaiError> {
     let config = load_config(config_path)?;
-    dbg!(config, user, project, activity, begin, description);
+    dbg!(config, user, project, activity, &begin, description);
 
+    let begin_date = match begin {
+        Some(s) => str_to_datetime(&s)?,
+        None => Local::now(),
+    };
+
+    dbg!(begin_date);
     Ok(())
 }

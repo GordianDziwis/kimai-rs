@@ -23,13 +23,16 @@ fn main() {
     }
 
     fn datetime_validator(s: String) -> Result<(), String> {
-        match NaiveDate::parse_from_str(&s, "%Y-%m-%d %H:%M") {
+        match NaiveDateTime::parse_from_str(&s, kimai::DATETIME_FORMAT) {
             Ok(_) => Ok(()),
-            Err(_) => match NaiveTime::parse_from_str(&s, "%H:%M") {
+            Err(_) => match NaiveTime::parse_from_str(&s, kimai::TIME_FORMAT) {
                 Ok(_) => Ok(()),
-                Err(_) => {
-                    Err("DateTime must be of format \"%Y-%m-%d %H:%M\" or \"%H:%M\"!".to_string())
-                }
+                Err(_) => Err(format!(
+                    "DateTime must be of format \"{}\" or \"{}\"!",
+                    kimai::DATETIME_FORMAT,
+                    kimai::TIME_FORMAT
+                )
+                .to_string()),
             },
         }
     }
