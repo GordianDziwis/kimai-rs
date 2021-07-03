@@ -192,17 +192,11 @@ fn get_headers(config: &Config) -> Result<header::HeaderMap, KimaiError> {
     Ok(headers)
 }
 
-fn check_response(response: reqwest::Response) -> Result<reqwest::Response, KimaiError> {
+async fn check_response(response: reqwest::Response) -> Result<reqwest::Response, KimaiError> {
     if response.status().is_success() {
         Ok(response)
     } else {
-        Err(KimaiError::Api(
-            response
-                .status()
-                .canonical_reason()
-                .unwrap_or("Error communicationg with Kimai")
-                .to_string(),
-        ))
+        Err(KimaiError::Api(response.text().await?))
     }
 }
 
@@ -222,7 +216,36 @@ where
     if let Some(p) = parameters {
         request_builder = request_builder.query(&p);
     }
-    Ok(check_response(request_builder.send().await?)?
+    Ok(check_response(request_builder.send().await?)
+        .await?
+        .json()
+        .await?)
+}
+
+async fn make_post_request<T, V>(
+    config: &Config,
+    api_endpoint: &str,
+    body: T,
+    parameters: Option<HashMap<&str, String>>,
+) -> Result<V, KimaiError>
+where
+    // TODO: Remove Debug trait!
+    T: Serialize + fmt::Debug,
+    V: for<'de> Deserialize<'de>,
+{
+    dbg!(&config, api_endpoint, &body, &parameters);
+    let url = format!("{}/{}", config.host, api_endpoint);
+    let mut request_builder = reqwest::Client::builder()
+        .default_headers(get_headers(config)?)
+        .build()?
+        .post(&url)
+        .json(&body);
+    if let Some(p) = parameters {
+        request_builder = request_builder.query(&p);
+    }
+    dbg!(&request_builder);
+    Ok(check_response(request_builder.send().await?)
+        .await?
         .json()
         .await?)
 }
@@ -466,16 +489,56 @@ fn str_to_datetime(date_str: &str) -> Result<DateTime<Local>, KimaiError> {
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct User {
+    id: usize,
+    username: String,
+    enabled: bool,
+    roles: Vec<String>,
+    language: String,
+    timezone: String,
+    alias: Option<String>,
+    title: Option<String>,
+    avatar: Option<String>,
+    teams: Vec<Team>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Team {
+    id: usize,
+    name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NewTimesheetRecord {
+    project: usize,
+    activity: usize,
+    begin: NaiveDateTime,
+}
+
 pub async fn begin_timesheet_record(
-    config: Config,
+    config: &Config,
     user: usize,
     project: usize,
     activity: usize,
     begin: DateTime<Local>,
     description: Option<String>,
 ) -> Result<TimesheetRecord, KimaiError> {
-    dbg!(config, user, project, activity, begin, description);
-    Err(KimaiError::Other("Not done yet".to_string()))
+    make_post_request(
+        config,
+        "api/timesheets",
+        NewTimesheetRecord {
+            project,
+            activity,
+            begin: begin.naive_local(),
+        },
+        None,
+    )
+    .await
+}
+
+pub async fn get_current_user(config: &Config) -> Result<User, KimaiError> {
+    make_get_request(config, "api/users/me", None).await
 }
 
 #[tokio::main]
@@ -488,13 +551,26 @@ pub async fn print_begin_timesheet_record(
     description: Option<String>,
 ) -> Result<(), KimaiError> {
     let config = load_config(config_path)?;
-    dbg!(config, user, project, activity, &begin, description);
 
-    let begin_date = match begin {
-        Some(s) => str_to_datetime(&s)?,
-        None => Local::now(),
-    };
-
-    dbg!(begin_date);
+    let record = begin_timesheet_record(
+        &config,
+        match user {
+            Some(u) => u,
+            None => {
+                let u = get_current_user(&config).await?;
+                dbg!(&u);
+                u.id
+            }
+        },
+        project,
+        activity,
+        match begin {
+            Some(s) => str_to_datetime(&s)?,
+            None => Local::now(),
+        },
+        description,
+    )
+    .await?;
+    dbg!(record);
     Ok(())
 }

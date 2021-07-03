@@ -3,14 +3,21 @@ use clap::{
     crate_authors, crate_description, crate_name, crate_version, values_t, App, Arg, SubCommand,
 };
 
-macro_rules! datetime_arg {
+macro_rules! arg {
     ($name:expr, $short:expr, $long:expr, $help:expr) => {
         Arg::with_name($name)
             .short($short)
             .long($long)
             .help($help)
             .takes_value(true)
-            .validator(datetime_validator)
+    };
+    ($name:expr, $short:expr, $long:expr, $help:expr, $validator:expr) => {
+        Arg::with_name($name)
+            .short($short)
+            .long($long)
+            .help($help)
+            .takes_value(true)
+            .validator($validator)
     };
 }
 
@@ -79,7 +86,29 @@ fn main() {
         .takes_value(true)
         .multiple(true);
 
-    let begin_arg = datetime_arg!("begin", "b", "begin", "A beginning time");
+    let begin_arg = arg!(
+        "begin",
+        "b",
+        "begin",
+        "A beginning time",
+        datetime_validator
+    );
+
+    let project_arg = arg!(
+        "project",
+        "p",
+        "project",
+        "ID of a Project",
+        usize_validator
+    );
+
+    let activity_arg = arg!(
+        "activity",
+        "a",
+        "activity",
+        "ID of an activity",
+        usize_validator
+    );
 
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -146,7 +175,9 @@ fn main() {
                         .about("Begin a new timesheet record")
                         .arg(&config_path_arg)
                         .arg(&user_arg)
-                        .arg(&begin_arg),
+                        .arg(&begin_arg)
+                        .arg(&project_arg.required(true))
+                        .arg(&activity_arg.required(true)),
                 )
                 .subcommand(
                     SubCommand::with_name("end")
@@ -236,8 +267,8 @@ fn main() {
                 matches
                     .value_of("user")
                     .map(|u| u.parse::<usize>().unwrap()),
-                1,
-                1,
+                matches.value_of("project").unwrap().parse().unwrap(),
+                matches.value_of("activity").unwrap().parse().unwrap(),
                 matches.value_of("begin").map(|p| p.to_string()),
                 None,
             )
