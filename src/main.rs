@@ -92,7 +92,71 @@ fn main() {
                 .arg(&projects_arg)
                 .arg(&customers_arg)
                 .arg(&activities_arg)
-                .arg(&term_arg),
+                .arg(&term_arg)
+                .subcommand(
+                    SubCommand::with_name("recent")
+                        .author(crate_authors!())
+                        .version(crate_version!())
+                        .about("View only recent timesheet records")
+                        .arg(&config_path_arg)
+                        .arg(&user_arg),
+                )
+                .subcommand(
+                    SubCommand::with_name("active")
+                        .author(crate_authors!())
+                        .version(crate_version!())
+                        .about("View only currently active timesheet records")
+                        .arg(&config_path_arg)
+                        .arg(&user_arg),
+                )
+                .subcommand(
+                    SubCommand::with_name("begin")
+                        .alias("start")
+                        .author(crate_authors!())
+                        .version(crate_version!())
+                        .about("Begin a new timesheet record")
+                        .arg(&config_path_arg)
+                        .arg(&user_arg),
+                )
+                .subcommand(
+                    SubCommand::with_name("end")
+                        .alias("stop")
+                        .author(crate_authors!())
+                        .version(crate_version!())
+                        .about("End a given timesheet record")
+                        .arg(&config_path_arg)
+                        .arg(&user_arg),
+                )
+                .subcommand(
+                    SubCommand::with_name("log")
+                        .author(crate_authors!())
+                        .version(crate_version!())
+                        .about("Log a new timesheet record")
+                        .arg(&config_path_arg)
+                        .arg(&user_arg),
+                )
+                .subcommand(
+                    SubCommand::with_name("change")
+                        .aliases(&["update", "patch"])
+                        .author(crate_authors!())
+                        .version(crate_version!())
+                        .about("Change a given timesheet record")
+                        .arg(&config_path_arg),
+                )
+                .subcommand(
+                    SubCommand::with_name("restart")
+                        .author(crate_authors!())
+                        .version(crate_version!())
+                        .about("Restart a given timesheet record")
+                        .arg(&config_path_arg),
+                )
+                .subcommand(
+                    SubCommand::with_name("delete")
+                        .author(crate_authors!())
+                        .version(crate_version!())
+                        .about("Delete the given timesheet records")
+                        .arg(&config_path_arg),
+                ),
         )
         .get_matches();
 
@@ -129,24 +193,56 @@ fn main() {
     }
 
     if let Some(matches) = matches.subcommand_matches("timesheet") {
-        kimai::print_timesheet(
-            matches.value_of("config_path").map(|p| p.to_string()),
-            matches
-                .value_of("user")
-                .map(|u| u.parse::<usize>().unwrap()),
-            match matches.is_present("customers") {
-                true => Some(values_t!(matches, "customers", usize).unwrap_or_else(|e| e.exit())),
-                false => None,
-            },
-            match matches.is_present("projects") {
-                true => Some(values_t!(matches, "projects", usize).unwrap_or_else(|e| e.exit())),
-                false => None,
-            },
-            match matches.is_present("activities") {
-                true => Some(values_t!(matches, "activities", usize).unwrap_or_else(|e| e.exit())),
-                false => None,
-            },
-        )
-        .unwrap();
+        if let Some(matches) = matches.subcommand_matches("recent") {
+            dbg!(matches);
+            todo!("The recent subcommand still needs to be implemented!");
+        } else if let Some(matches) = matches.subcommand_matches("active") {
+            dbg!(matches);
+            todo!("The active subcommand still needs to be implemented?");
+        } else if let Some(matches) = matches.subcommand_matches("begin") {
+            dbg!(matches);
+            todo!("The begin subcommand still needs to be implemented?");
+        } else if let Some(matches) = matches.subcommand_matches("end") {
+            dbg!(matches);
+            todo!("The end subcommand still needs to be implemented?");
+        } else if let Some(matches) = matches.subcommand_matches("restart") {
+            dbg!(matches);
+            todo!("The restart subcommand still needs to be implemented?");
+        } else if let Some(matches) = matches.subcommand_matches("change") {
+            dbg!(matches);
+            todo!("The change subcommand still needs to be implemented?");
+        } else if let Some(matches) = matches.subcommand_matches("delete") {
+            dbg!(matches);
+            todo!("The delete subcommand still needs to be implemented?");
+        } else if let Some(matches) = matches.subcommand_matches("log") {
+            dbg!(matches);
+            todo!("The log subcommand still needs to be implemented?");
+        } else {
+            kimai::print_timesheet(
+                matches.value_of("config_path").map(|p| p.to_string()),
+                matches
+                    .value_of("user")
+                    .map(|u| u.parse::<usize>().unwrap()),
+                match matches.is_present("customers") {
+                    true => {
+                        Some(values_t!(matches, "customers", usize).unwrap_or_else(|e| e.exit()))
+                    }
+                    false => None,
+                },
+                match matches.is_present("projects") {
+                    true => {
+                        Some(values_t!(matches, "projects", usize).unwrap_or_else(|e| e.exit()))
+                    }
+                    false => None,
+                },
+                match matches.is_present("activities") {
+                    true => {
+                        Some(values_t!(matches, "activities", usize).unwrap_or_else(|e| e.exit()))
+                    }
+                    false => None,
+                },
+            )
+            .unwrap();
+        }
     }
 }
