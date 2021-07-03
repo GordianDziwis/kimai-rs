@@ -443,3 +443,30 @@ pub async fn print_timesheet(
 
     Ok(())
 }
+
+pub async fn begin_timesheet_record(
+    config: Config,
+    user: usize,
+    project: usize,
+    activity: usize,
+    begin: DateTime<Local>,
+    description: Option<String>,
+) -> Result<TimesheetRecord, KimaiError> {
+    dbg!(config, user, project, activity, begin, description);
+    Err(KimaiError::Other("Not done yet".to_string()))
+}
+
+#[tokio::main]
+pub async fn print_begin_timesheet_record(
+    config_path: Option<String>,
+    user: Option<usize>,
+    project: usize,
+    activity: usize,
+    begin: Option<String>,
+    description: Option<String>,
+) -> Result<(), KimaiError> {
+    let config = load_config(config_path)?;
+    dbg!(config, user, project, activity, begin, description);
+
+    Ok(())
+}

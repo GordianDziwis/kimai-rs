@@ -1,12 +1,36 @@
+use chrono::prelude::*;
 use clap::{
     crate_authors, crate_description, crate_name, crate_version, values_t, App, Arg, SubCommand,
 };
+
+macro_rules! datetime_arg {
+    ($name:expr, $short:expr, $long:expr, $help:expr) => {
+        Arg::with_name($name)
+            .short($short)
+            .long($long)
+            .help($help)
+            .takes_value(true)
+            .validator(datetime_validator)
+    };
+}
 
 fn main() {
     fn usize_validator(s: String) -> Result<(), String> {
         match s.parse::<usize>() {
             Ok(_) => Ok(()),
             Err(_) => Err("Input must be integer!".to_string()),
+        }
+    }
+
+    fn datetime_validator(s: String) -> Result<(), String> {
+        match NaiveDate::parse_from_str(&s, "%Y-%m-%d %H:%M") {
+            Ok(_) => Ok(()),
+            Err(_) => match NaiveTime::parse_from_str(&s, "%H:%M") {
+                Ok(_) => Ok(()),
+                Err(_) => {
+                    Err("DateTime must be of format \"%Y-%m-%d %H:%M\" or \"%H:%M\"!".to_string())
+                }
+            },
         }
     }
 
@@ -51,6 +75,8 @@ fn main() {
         .validator(usize_validator)
         .takes_value(true)
         .multiple(true);
+
+    let begin_arg = datetime_arg!("begin", "b", "begin", "A beginning time");
 
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -116,7 +142,8 @@ fn main() {
                         .version(crate_version!())
                         .about("Begin a new timesheet record")
                         .arg(&config_path_arg)
-                        .arg(&user_arg),
+                        .arg(&user_arg)
+                        .arg(&begin_arg),
                 )
                 .subcommand(
                     SubCommand::with_name("end")
@@ -133,7 +160,8 @@ fn main() {
                         .version(crate_version!())
                         .about("Log a new timesheet record")
                         .arg(&config_path_arg)
-                        .arg(&user_arg),
+                        .arg(&user_arg)
+                        .arg(&begin_arg.required(true)),
                 )
                 .subcommand(
                     SubCommand::with_name("change")
@@ -200,8 +228,17 @@ fn main() {
             dbg!(matches);
             todo!("The active subcommand still needs to be implemented?");
         } else if let Some(matches) = matches.subcommand_matches("begin") {
-            dbg!(matches);
-            todo!("The begin subcommand still needs to be implemented?");
+            kimai::print_begin_timesheet_record(
+                matches.value_of("config_path").map(|p| p.to_string()),
+                matches
+                    .value_of("user")
+                    .map(|u| u.parse::<usize>().unwrap()),
+                1,
+                1,
+                matches.value_of("begin").map(|p| p.to_string()),
+                None,
+            )
+            .unwrap();
         } else if let Some(matches) = matches.subcommand_matches("end") {
             dbg!(matches);
             todo!("The end subcommand still needs to be implemented?");
