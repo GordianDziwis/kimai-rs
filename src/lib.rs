@@ -406,6 +406,30 @@ pub struct TimesheetRecord {
     tags: Vec<String>,
 }
 
+impl TimesheetRecord {
+    pub fn print_table(&self) {
+        let description = match &self.description {
+            Some(d) => d,
+            None => "",
+        };
+        let mut table = Table::new();
+        table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+        table.set_titles(row!["Attribute", "Value"]);
+        table.add_row(row!["ID", self.id]);
+        // TODO: resolve project, activity and user IDs to the actual names
+        table.add_row(row!["Project", self.project]);
+        table.add_row(row!["Activity", self.activity]);
+        table.add_row(row!["User", self.user]);
+        table.add_row(row!["Begin", self.begin]);
+        if let Some(end) = self.end {
+            table.add_row(row!["End", end]);
+        }
+        table.add_row(row!["Description", description]);
+        table.add_row(row!["Tags", self.tags.join(", ")]);
+        table.printstd();
+    }
+}
+
 pub async fn get_timesheet(
     config: &Config,
     user: Option<usize>,
@@ -575,25 +599,7 @@ pub async fn print_begin_timesheet_record(
     .await?;
 
     println!("Started new timesheet record:");
-
-    let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
-    table.set_titles(row!["Attribute", "Value"]);
-    table.add_row(row!["ID", record.id]);
-    // TODO: resolve project, activity and user IDs to the actual names
-    table.add_row(row!["Project", record.project]);
-    table.add_row(row!["Activity", record.activity]);
-    table.add_row(row!["User", record.user]);
-    table.add_row(row!["Begin", record.begin]);
-    if let Some(end) = record.end {
-        table.add_row(row!["End", end]);
-    }
-    table.add_row(row![
-        "Description",
-        record.description.unwrap_or_else(|| "".into())
-    ]);
-    table.add_row(row!["Tags", record.tags.join(", ")]);
-    table.printstd();
+    record.print_table();
 
     Ok(())
 }
