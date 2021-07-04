@@ -38,8 +38,7 @@ fn main() {
                     "DateTime must be of format \"{}\" or \"{}\"!",
                     kimai::DATETIME_FORMAT,
                     kimai::TIME_FORMAT
-                )
-                .to_string()),
+                )),
             },
         }
     }
@@ -110,6 +109,15 @@ fn main() {
         usize_validator
     );
 
+    let description_arg = arg!(
+        "description",
+        "d",
+        "description",
+        "Description to be added to a record"
+    );
+
+    let tags_arg = arg!("tags", "t", "tags", "Tags for a timesheet record").multiple(true);
+
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!())
@@ -177,7 +185,9 @@ fn main() {
                         .arg(&user_arg)
                         .arg(&begin_arg)
                         .arg(&project_arg.required(true))
-                        .arg(&activity_arg.required(true)),
+                        .arg(&activity_arg.required(true))
+                        .arg(&description_arg)
+                        .arg(&tags_arg),
                 )
                 .subcommand(
                     SubCommand::with_name("end")
@@ -270,7 +280,11 @@ fn main() {
                 matches.value_of("project").unwrap().parse().unwrap(),
                 matches.value_of("activity").unwrap().parse().unwrap(),
                 matches.value_of("begin").map(|p| p.to_string()),
-                None,
+                matches.value_of("description").map(|d| d.to_string()),
+                match matches.is_present("tags") {
+                    true => Some(values_t!(matches, "tags", String).unwrap_or_else(|e| e.exit())),
+                    false => None,
+                },
             )
             .unwrap();
         } else if let Some(matches) = matches.subcommand_matches("end") {

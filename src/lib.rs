@@ -229,11 +229,9 @@ async fn make_post_request<T, V>(
     parameters: Option<HashMap<&str, String>>,
 ) -> Result<V, KimaiError>
 where
-    // TODO: Remove Debug trait!
-    T: Serialize + fmt::Debug,
+    T: Serialize,
     V: for<'de> Deserialize<'de>,
 {
-    dbg!(&config, api_endpoint, &body, &parameters);
     let url = format!("{}/{}", config.host, api_endpoint);
     let mut request_builder = reqwest::Client::builder()
         .default_headers(get_headers(config)?)
@@ -243,7 +241,6 @@ where
     if let Some(p) = parameters {
         request_builder = request_builder.query(&p);
     }
-    dbg!(&request_builder);
     Ok(check_response(request_builder.send().await?)
         .await?
         .json()
@@ -510,31 +507,38 @@ pub struct Team {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct NewTimesheetRecord {
     project: usize,
     activity: usize,
     begin: NaiveDateTime,
+    description: Option<String>,
+    //user: usize,
+    tags: Option<String>,
 }
 
 pub async fn begin_timesheet_record(
     config: &Config,
-    user: usize,
+    // TODO: find out why adding a user doesn't work
+    _user: usize,
     project: usize,
     activity: usize,
     begin: DateTime<Local>,
     description: Option<String>,
+    tags: Option<Vec<String>>,
 ) -> Result<TimesheetRecord, KimaiError> {
-    make_post_request(
-        config,
-        "api/timesheets",
-        NewTimesheetRecord {
-            project,
-            activity,
-            begin: begin.naive_local(),
-        },
-        None,
-    )
-    .await
+    let record = NewTimesheetRecord {
+        project,
+        activity,
+        begin: begin.naive_local(),
+        description,
+        // tags: match tags {
+        //     Some(t) => Some(t.join(",")),
+        //     None => None,
+        // },
+        tags: tags.map(|t| t.join(",")),
+    };
+    make_post_request(config, "api/timesheets", record, None).await
 }
 
 pub async fn get_current_user(config: &Config) -> Result<User, KimaiError> {
@@ -549,6 +553,7 @@ pub async fn print_begin_timesheet_record(
     activity: usize,
     begin: Option<String>,
     description: Option<String>,
+    tags: Option<Vec<String>>,
 ) -> Result<(), KimaiError> {
     let config = load_config(config_path)?;
 
@@ -556,11 +561,7 @@ pub async fn print_begin_timesheet_record(
         &config,
         match user {
             Some(u) => u,
-            None => {
-                let u = get_current_user(&config).await?;
-                dbg!(&u);
-                u.id
-            }
+            None => get_current_user(&config).await?.id,
         },
         project,
         activity,
@@ -569,8 +570,30 @@ pub async fn print_begin_timesheet_record(
             None => Local::now(),
         },
         description,
+        tags,
     )
     .await?;
-    dbg!(record);
+
+    println!("Started new timesheet record:");
+
+    let mut table = Table::new();
+    table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    table.set_titles(row!["Attribute", "Value"]);
+    table.add_row(row!["ID", record.id]);
+    // TODO: resolve project, activity and user IDs to the actual names
+    table.add_row(row!["Project", record.project]);
+    table.add_row(row!["Activity", record.activity]);
+    table.add_row(row!["User", record.user]);
+    table.add_row(row!["Begin", record.begin]);
+    if let Some(end) = record.end {
+        table.add_row(row!["End", end]);
+    }
+    table.add_row(row![
+        "Description",
+        record.description.unwrap_or_else(|| "".into())
+    ]);
+    table.add_row(row!["Tags", record.tags.join(", ")]);
+    table.printstd();
+
     Ok(())
 }
