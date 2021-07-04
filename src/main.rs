@@ -4,6 +4,19 @@ use clap::{
 };
 
 macro_rules! arg {
+    ($name:expr, $help:expr) => {
+        Arg::with_name($name)
+            .help($help)
+            .takes_value(true)
+            .required(true)
+    };
+    ($name:expr, $help:expr, $validator:expr) => {
+        Arg::with_name($name)
+            .help($help)
+            .takes_value(true)
+            .required(true)
+            .validator($validator)
+    };
     ($name:expr, $short:expr, $long:expr, $help:expr) => {
         Arg::with_name($name)
             .short($short)
@@ -117,6 +130,7 @@ fn main() {
     );
 
     let tags_arg = arg!("tags", "t", "tags", "Tags for a timesheet record").multiple(true);
+    let id_arg = arg!("id", "ID of a timesheet record", usize_validator);
 
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -196,7 +210,7 @@ fn main() {
                         .version(crate_version!())
                         .about("End a given timesheet record")
                         .arg(&config_path_arg)
-                        .arg(&user_arg),
+                        .arg(&id_arg),
                 )
                 .subcommand(
                     SubCommand::with_name("log")
@@ -294,8 +308,11 @@ fn main() {
             )
             .unwrap();
         } else if let Some(matches) = matches.subcommand_matches("end") {
-            dbg!(matches);
-            todo!("The end subcommand still needs to be implemented?");
+            kimai::print_end_timesheet_record(
+                matches.value_of("config_path").map(|p| p.to_string()),
+                matches.value_of("id").unwrap().parse().unwrap(),
+            )
+            .unwrap();
         } else if let Some(matches) = matches.subcommand_matches("restart") {
             dbg!(matches);
             todo!("The restart subcommand still needs to be implemented?");

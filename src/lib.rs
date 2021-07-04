@@ -359,6 +359,32 @@ where
         .json()
         .await?)
 }
+async fn make_patch_request<T, V>(
+    config: &Config,
+    api_endpoint: &str,
+    body: Option<T>,
+    parameters: Option<HashMap<&str, String>>,
+) -> Result<V, KimaiError>
+where
+    T: Serialize,
+    V: for<'de> Deserialize<'de>,
+{
+    let url = format!("{}/{}", config.host, api_endpoint);
+    let mut request_builder = reqwest::Client::builder()
+        .default_headers(get_headers(config)?)
+        .build()?
+        .patch(&url);
+    if let Some(b) = body {
+        request_builder = request_builder.json(&b);
+    }
+    if let Some(p) = parameters {
+        request_builder = request_builder.query(&p);
+    }
+    Ok(check_response(request_builder.send().await?)
+        .await?
+        .json()
+        .await?)
+}
 
 fn load_config(config_path: Option<String>) -> Result<Config, KimaiError> {
     match config_path {
@@ -655,6 +681,7 @@ fn get_datetime(datetime_str: Option<String>) -> Result<DateTime<Local>, KimaiEr
         }
     }
 }
+
 #[tokio::main]
 pub async fn print_begin_timesheet_record(
     config_path: Option<String>,
@@ -682,6 +709,32 @@ pub async fn print_begin_timesheet_record(
     .await?;
 
     println!("Started new timesheet record:");
+    record.print_table();
+
+    Ok(())
+}
+
+pub async fn end_timesheet_record(
+    config: &Config,
+    id: usize,
+) -> Result<TimesheetRecord, KimaiError> {
+    make_patch_request::<Vec<String>, TimesheetRecord>(
+        config,
+        &format!("api/timesheets/{}/stop", id),
+        None,
+        None,
+    )
+    .await
+}
+
+#[tokio::main]
+pub async fn print_end_timesheet_record(
+    config_path: Option<String>,
+    id: usize,
+) -> Result<(), KimaiError> {
+    let config = load_config(config_path)?;
+    let record = end_timesheet_record(&config, id).await?;
+    println!("Ended timesheet record:");
     record.print_table();
 
     Ok(())
