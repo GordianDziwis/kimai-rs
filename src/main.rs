@@ -165,6 +165,7 @@ fn main() {
                         .version(crate_version!())
                         .about("View only recent timesheet records")
                         .arg(&config_path_arg)
+                        .arg(&begin_arg)
                         .arg(&user_arg),
                 )
                 .subcommand(
@@ -172,8 +173,7 @@ fn main() {
                         .author(crate_authors!())
                         .version(crate_version!())
                         .about("View only currently active timesheet records")
-                        .arg(&config_path_arg)
-                        .arg(&user_arg),
+                        .arg(&config_path_arg),
                 )
                 .subcommand(
                     SubCommand::with_name("begin")
@@ -266,11 +266,17 @@ fn main() {
 
     if let Some(matches) = matches.subcommand_matches("timesheet") {
         if let Some(matches) = matches.subcommand_matches("recent") {
-            dbg!(matches);
-            todo!("The recent subcommand still needs to be implemented!");
+            kimai::print_recent_timesheet(
+                matches.value_of("config_path").map(|p| p.to_string()),
+                matches
+                    .value_of("user")
+                    .map(|u| u.parse::<usize>().unwrap()),
+                matches.value_of("begin").map(|p| p.to_string()),
+            )
+            .unwrap();
         } else if let Some(matches) = matches.subcommand_matches("active") {
-            dbg!(matches);
-            todo!("The active subcommand still needs to be implemented?");
+            kimai::print_active_timesheet(matches.value_of("config_path").map(|p| p.to_string()))
+                .unwrap();
         } else if let Some(matches) = matches.subcommand_matches("begin") {
             kimai::print_begin_timesheet_record(
                 matches.value_of("config_path").map(|p| p.to_string()),

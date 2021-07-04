@@ -43,6 +43,12 @@ impl QueryValue for usize {
     }
 }
 
+impl QueryValue for DateTime<Local> {
+    fn process(&self) -> String {
+        self.naive_local().to_string()
+    }
+}
+
 macro_rules! query{
     ($(($key:expr, $value:expr)),*) => {{
         let mut queries = HashMap::new();
@@ -179,6 +185,113 @@ impl Config {
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct User {
+    id: usize,
+    username: String,
+    enabled: bool,
+    roles: Vec<String>,
+    language: String,
+    timezone: String,
+    alias: Option<String>,
+    title: Option<String>,
+    avatar: Option<String>,
+    teams: Vec<Team>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Team {
+    id: usize,
+    name: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Customer {
+    id: usize,
+    name: String,
+    visible: bool,
+    color: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Project {
+    id: usize,
+    name: String,
+    customer: usize,
+    parent_title: String,
+    visible: bool,
+    color: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ShortProject {
+    id: usize,
+    name: String,
+    visible: bool,
+    color: Option<String>,
+    customer: Customer,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Activity {
+    id: usize,
+    name: String,
+    project: Option<usize>,
+    parent_title: Option<String>,
+    visible: bool,
+    color: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ShortActivity {
+    id: usize,
+    name: String,
+    visible: bool,
+    color: Option<String>,
+    project: Option<ShortProject>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TimesheetRecord {
+    id: usize,
+    description: Option<String>,
+    begin: DateTime<Local>,
+    end: Option<DateTime<Local>>,
+    duration: i64,
+    project: usize,
+    activity: usize,
+    user: usize,
+    tags: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NewTimesheetRecord {
+    project: usize,
+    activity: usize,
+    begin: NaiveDateTime,
+    description: Option<String>,
+    //user: usize,
+    tags: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimesheetRecordEntity {
+    id: usize,
+    begin: DateTime<Local>,
+    end: Option<DateTime<Local>>,
+    duration: i64,
+    description: Option<String>,
+    rate: f32,
+    internal_rate: f32,
+    billable: bool,
+    project: ShortProject,
+    activity: ShortActivity,
+}
+
 fn get_headers(config: &Config) -> Result<header::HeaderMap, KimaiError> {
     let mut headers = header::HeaderMap::new();
     headers.insert(
@@ -254,14 +367,6 @@ fn load_config(config_path: Option<String>) -> Result<Config, KimaiError> {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Customer {
-    id: usize,
-    name: String,
-    visible: bool,
-    color: String,
-}
-
 pub async fn get_customers(
     config: &Config,
     term: Option<String>,
@@ -287,17 +392,6 @@ pub async fn print_customers(
     table.printstd();
 
     Ok(())
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Project {
-    id: usize,
-    name: String,
-    customer: usize,
-    parent_title: String,
-    visible: bool,
-    color: Option<String>,
 }
 
 pub async fn get_projects(
@@ -337,17 +431,6 @@ pub async fn print_projects(
     table.printstd();
 
     Ok(())
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Activity {
-    id: usize,
-    name: String,
-    project: Option<usize>,
-    parent_title: Option<String>,
-    visible: bool,
-    color: Option<String>,
 }
 
 pub async fn get_activities(
@@ -391,19 +474,6 @@ pub async fn print_activities(
     table.printstd();
 
     Ok(())
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct TimesheetRecord {
-    id: usize,
-    description: Option<String>,
-    begin: DateTime<Local>,
-    end: Option<DateTime<Local>>,
-    duration: i64,
-    project: usize,
-    activity: usize,
-    user: usize,
-    tags: Vec<String>,
 }
 
 impl TimesheetRecord {
@@ -451,17 +521,7 @@ pub async fn get_timesheet(
     .await
 }
 
-#[tokio::main]
-pub async fn print_timesheet(
-    config_path: Option<String>,
-    user: Option<usize>,
-    customers: Option<Vec<usize>>,
-    projects: Option<Vec<usize>>,
-    activities: Option<Vec<usize>>,
-) -> Result<(), KimaiError> {
-    let config = load_config(config_path)?;
-    let timesheet_records = get_timesheet(&config, user, customers, projects, activities).await?;
-
+fn print_timesheets(records: &[TimesheetRecord]) {
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
     table.set_titles(row![
@@ -473,10 +533,10 @@ pub async fn print_timesheet(
         "Activity",
         "Description"
     ]);
-    for record in timesheet_records {
-        let description = match record.description {
+    for record in records {
+        let description = match &record.description {
             Some(d) => d.to_string(),
-            None => "".to_string(),
+            None => "".into(),
         };
         let end = match record.end {
             Some(e) => e.format("%Y-%m-%d %H:%M").to_string(),
@@ -496,6 +556,57 @@ pub async fn print_timesheet(
     }
 
     table.printstd();
+}
+
+fn print_timesheet_entities(records: &[TimesheetRecordEntity]) {
+    let mut table = Table::new();
+    table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    table.set_titles(row![
+        "ID",
+        "Begin",
+        "End",
+        "Duration",
+        "Project",
+        "Activity",
+        "Description"
+    ]);
+    for record in records {
+        let description = match &record.description {
+            Some(d) => d.to_string(),
+            None => "".into(),
+        };
+        let end = match record.end {
+            Some(e) => e.format("%Y-%m-%d %H:%M").to_string(),
+            None => "".to_string(),
+        };
+        let d = chrono::Duration::seconds(record.duration);
+        let d_str = format!("{}:{:02}", d.num_hours(), d.num_minutes() % 60);
+        table.add_row(row![
+            r->record.id,
+            record.begin.format("%Y-%m-%d %H:%M"),
+            end,
+            r->d_str,
+            format!("{} ({})", record.project.id, record.project.name),
+            format!("{} ({})", record.activity.id, record.activity.name),
+            description,
+        ]);
+    }
+
+    table.printstd();
+}
+
+#[tokio::main]
+pub async fn print_timesheet(
+    config_path: Option<String>,
+    user: Option<usize>,
+    customers: Option<Vec<usize>>,
+    projects: Option<Vec<usize>>,
+    activities: Option<Vec<usize>>,
+) -> Result<(), KimaiError> {
+    let config = load_config(config_path)?;
+    let timesheet_records = get_timesheet(&config, user, customers, projects, activities).await?;
+
+    print_timesheets(&timesheet_records);
 
     Ok(())
 }
@@ -508,37 +619,6 @@ fn str_to_datetime(date_str: &str) -> Result<DateTime<Local>, KimaiError> {
             Err(e) => Err(KimaiError::from(e)),
         },
     }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct User {
-    id: usize,
-    username: String,
-    enabled: bool,
-    roles: Vec<String>,
-    language: String,
-    timezone: String,
-    alias: Option<String>,
-    title: Option<String>,
-    avatar: Option<String>,
-    teams: Vec<Team>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Team {
-    id: usize,
-    name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct NewTimesheetRecord {
-    project: usize,
-    activity: usize,
-    begin: NaiveDateTime,
-    description: Option<String>,
-    //user: usize,
-    tags: Option<String>,
 }
 
 pub async fn begin_timesheet_record(
@@ -556,10 +636,6 @@ pub async fn begin_timesheet_record(
         activity,
         begin: begin.naive_local(),
         description,
-        // tags: match tags {
-        //     Some(t) => Some(t.join(",")),
-        //     None => None,
-        // },
         tags: tags.map(|t| t.join(",")),
     };
     make_post_request(config, "api/timesheets", record, None).await
@@ -607,6 +683,50 @@ pub async fn print_begin_timesheet_record(
 
     println!("Started new timesheet record:");
     record.print_table();
+
+    Ok(())
+}
+
+pub async fn get_active_timesheet(
+    config: &Config,
+) -> Result<Vec<TimesheetRecordEntity>, KimaiError> {
+    make_get_request(&config, "api/timesheets/active", None).await
+}
+
+#[tokio::main]
+pub async fn print_active_timesheet(config_path: Option<String>) -> Result<(), KimaiError> {
+    let config = load_config(config_path)?;
+
+    let records = get_active_timesheet(&config).await?;
+    print_timesheet_entities(&records);
+
+    Ok(())
+}
+
+pub async fn get_recent_timesheet(
+    config: &Config,
+    user: Option<usize>,
+    begin: Option<DateTime<Local>>,
+) -> Result<Vec<TimesheetRecordEntity>, KimaiError> {
+    make_get_request(
+        &config,
+        "api/timesheets/recent",
+        query!(("user", user), ("begin", begin)),
+    )
+    .await
+}
+
+#[tokio::main]
+pub async fn print_recent_timesheet(
+    config_path: Option<String>,
+    user: Option<usize>,
+    begin: Option<String>,
+) -> Result<(), KimaiError> {
+    let config = load_config(config_path)?;
+
+    let records =
+        get_recent_timesheet(&config, user, begin.map(|b| str_to_datetime(&b).unwrap())).await?;
+    print_timesheet_entities(&records);
 
     Ok(())
 }
