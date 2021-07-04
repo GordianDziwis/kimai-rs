@@ -569,6 +569,16 @@ pub async fn get_current_user(config: &Config) -> Result<User, KimaiError> {
     make_get_request(config, "api/users/me", None).await
 }
 
+fn get_datetime(datetime_str: Option<String>) -> Result<DateTime<Local>, KimaiError> {
+    match datetime_str {
+        Some(s) => str_to_datetime(&s),
+        None => {
+            let mut now = Local::now();
+            now = now - chrono::Duration::nanoseconds(now.timestamp_subsec_nanos() as i64);
+            Ok(now)
+        }
+    }
+}
 #[tokio::main]
 pub async fn print_begin_timesheet_record(
     config_path: Option<String>,
@@ -589,10 +599,7 @@ pub async fn print_begin_timesheet_record(
         },
         project,
         activity,
-        match begin {
-            Some(s) => str_to_datetime(&s)?,
-            None => Local::now(),
-        },
+        get_datetime(begin)?,
         description,
         tags,
     )
