@@ -287,6 +287,7 @@ pub struct TimesheetRecordEntity {
     description: Option<String>,
     rate: f32,
     internal_rate: f32,
+    #[serde(default)]
     billable: bool,
     project: ShortProject,
     activity: ShortActivity,
