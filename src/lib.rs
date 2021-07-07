@@ -266,6 +266,37 @@ pub struct TimesheetRecord {
     tags: Vec<String>,
 }
 
+impl TimesheetRecord {
+    pub fn print_table(&self) {
+        let description = match &self.description {
+            Some(d) => d,
+            None => "",
+        };
+        let mut table = Table::new();
+        table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+        table.set_titles(row!["Attribute", "Value"]);
+        table.add_row(row!["ID", self.id]);
+        // TODO: resolve project, activity and user IDs to the actual names
+        table.add_row(row!["Project", self.project]);
+        table.add_row(row!["Activity", self.activity]);
+        table.add_row(row!["User", self.user]);
+        table.add_row(row!["Begin", self.begin]);
+        if let Some(end) = self.end {
+            table.add_row(row!["End", end]);
+        }
+        if self.duration != 0 {
+            let d = chrono::Duration::seconds(self.duration);
+            table.add_row(row![
+                "Duration",
+                format!("{}:{:02}", d.num_hours(), d.num_minutes() % 60)
+            ]);
+        }
+        table.add_row(row!["Description", description]);
+        table.add_row(row!["Tags", self.tags.join(", ")]);
+        table.printstd();
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NewTimesheetRecord {
@@ -502,30 +533,6 @@ pub async fn print_activities(
     table.printstd();
 
     Ok(())
-}
-
-impl TimesheetRecord {
-    pub fn print_table(&self) {
-        let description = match &self.description {
-            Some(d) => d,
-            None => "",
-        };
-        let mut table = Table::new();
-        table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
-        table.set_titles(row!["Attribute", "Value"]);
-        table.add_row(row!["ID", self.id]);
-        // TODO: resolve project, activity and user IDs to the actual names
-        table.add_row(row!["Project", self.project]);
-        table.add_row(row!["Activity", self.activity]);
-        table.add_row(row!["User", self.user]);
-        table.add_row(row!["Begin", self.begin]);
-        if let Some(end) = self.end {
-            table.add_row(row!["End", end]);
-        }
-        table.add_row(row!["Description", description]);
-        table.add_row(row!["Tags", self.tags.join(", ")]);
-        table.printstd();
-    }
 }
 
 pub async fn get_timesheet(
