@@ -272,6 +272,7 @@ struct NewTimesheetRecord {
     project: usize,
     activity: usize,
     begin: NaiveDateTime,
+    end: Option<NaiveDateTime>,
     description: Option<String>,
     //user: usize,
     tags: Option<String>,
@@ -662,6 +663,7 @@ pub async fn begin_timesheet_record(
         project,
         activity,
         begin: begin.naive_local(),
+        end: None,
         description,
         tags: tags.map(|t| t.join(",")),
     };
@@ -710,6 +712,64 @@ pub async fn print_begin_timesheet_record(
     .await?;
 
     println!("Started new timesheet record:");
+    record.print_table();
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn log_timesheet_record(
+    config: &Config,
+    // TODO: find out why adding a user doesn't work
+    _user: usize,
+    project: usize,
+    activity: usize,
+    begin: DateTime<Local>,
+    end: DateTime<Local>,
+    description: Option<String>,
+    tags: Option<Vec<String>>,
+) -> Result<TimesheetRecord, KimaiError> {
+    let record = NewTimesheetRecord {
+        project,
+        activity,
+        begin: begin.naive_local(),
+        end: Some(end.naive_local()),
+        description,
+        tags: tags.map(|t| t.join(",")),
+    };
+    make_post_request(config, "api/timesheets", record, None).await
+}
+
+#[tokio::main]
+#[allow(clippy::too_many_arguments)]
+pub async fn print_log_timesheet_record(
+    config_path: Option<String>,
+    user: Option<usize>,
+    project: usize,
+    activity: usize,
+    begin: String,
+    end: Option<String>,
+    description: Option<String>,
+    tags: Option<Vec<String>>,
+) -> Result<(), KimaiError> {
+    let config = load_config(config_path)?;
+
+    let record = log_timesheet_record(
+        &config,
+        match user {
+            Some(u) => u,
+            None => get_current_user(&config).await?.id,
+        },
+        project,
+        activity,
+        str_to_datetime(&begin)?,
+        get_datetime(end)?,
+        description,
+        tags,
+    )
+    .await?;
+
+    println!("Logged new timesheet record:");
     record.print_table();
 
     Ok(())
@@ -783,4 +843,12 @@ pub async fn print_recent_timesheet(
     print_timesheet_entities(&records);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn basic_test() {
+        assert!(true);
+    }
 }

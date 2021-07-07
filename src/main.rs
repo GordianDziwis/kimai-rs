@@ -106,6 +106,8 @@ fn main() {
         datetime_validator
     );
 
+    let end_arg = arg!("end", "e", "end", "An end time", datetime_validator);
+
     let project_arg = arg!(
         "project",
         "p",
@@ -198,8 +200,8 @@ fn main() {
                         .arg(&config_path_arg)
                         .arg(&user_arg)
                         .arg(&begin_arg)
-                        .arg(&project_arg.required(true))
-                        .arg(&activity_arg.required(true))
+                        .arg(&project_arg.clone().required(true))
+                        .arg(&activity_arg.clone().required(true))
                         .arg(&description_arg)
                         .arg(&tags_arg),
                 )
@@ -218,8 +220,12 @@ fn main() {
                         .version(crate_version!())
                         .about("Log a new timesheet record")
                         .arg(&config_path_arg)
-                        .arg(&user_arg)
-                        .arg(&begin_arg.required(true)),
+                        .arg(&begin_arg.required(true))
+                        .arg(&end_arg)
+                        .arg(&project_arg.clone().required(true))
+                        .arg(&activity_arg.clone().required(true))
+                        .arg(&description_arg)
+                        .arg(&tags_arg),
                 )
                 .subcommand(
                     SubCommand::with_name("change")
@@ -323,8 +329,22 @@ fn main() {
             dbg!(matches);
             todo!("The delete subcommand still needs to be implemented?");
         } else if let Some(matches) = matches.subcommand_matches("log") {
-            dbg!(matches);
-            todo!("The log subcommand still needs to be implemented?");
+            kimai::print_log_timesheet_record(
+                matches.value_of("config_path").map(|p| p.to_string()),
+                matches
+                    .value_of("user")
+                    .map(|u| u.parse::<usize>().unwrap()),
+                matches.value_of("project").unwrap().parse().unwrap(),
+                matches.value_of("activity").unwrap().parse().unwrap(),
+                matches.value_of("begin").unwrap().to_string(),
+                matches.value_of("end").map(|p| p.to_string()),
+                matches.value_of("description").map(|d| d.to_string()),
+                match matches.is_present("tags") {
+                    true => Some(values_t!(matches, "tags", String).unwrap_or_else(|e| e.exit())),
+                    false => None,
+                },
+            )
+            .unwrap();
         } else {
             kimai::print_timesheet(
                 matches.value_of("config_path").map(|p| p.to_string()),
