@@ -551,12 +551,14 @@ pub async fn log_timesheet_record(
     make_post_request(config, "api/timesheets", record, None).await
 }
 
+/// Get all currently active timesheet records
 pub async fn get_active_timesheet(
     config: &Config,
 ) -> Result<Vec<TimesheetRecordEntity>, KimaiError> {
     make_get_request(&config, "api/timesheets/active", None).await
 }
 
+/// Get recent timesheet records
 pub async fn get_recent_timesheet(
     config: &Config,
     user: Option<usize>,
@@ -568,6 +570,14 @@ pub async fn get_recent_timesheet(
         query!(("user", user), ("begin", begin)),
     )
     .await
+}
+
+/// Get the data of one given timesheet record
+pub async fn get_timesheet_record(
+    config: &Config,
+    id: usize,
+) -> Result<TimesheetRecord, KimaiError> {
+    make_get_request(&config, &format!("api/timesheets/{}", id), None).await
 }
 
 #[tokio::main]
@@ -858,6 +868,19 @@ pub async fn print_recent_timesheet(
     let records =
         get_recent_timesheet(&config, user, begin.map(|b| str_to_datetime(&b).unwrap())).await?;
     print_timesheet_entities(&records);
+
+    Ok(())
+}
+
+#[tokio::main]
+pub async fn print_timesheet_record_status(
+    config_path: Option<String>,
+    id: usize,
+) -> Result<(), KimaiError> {
+    let config = load_config(config_path)?;
+
+    let record = get_timesheet_record(&config, id).await?;
+    record.print_table();
 
     Ok(())
 }

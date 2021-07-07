@@ -192,6 +192,14 @@ fn main() {
                         .arg(&config_path_arg),
                 )
                 .subcommand(
+                    SubCommand::with_name("status")
+                        .author(crate_authors!())
+                        .version(crate_version!())
+                        .about("View the status of a givin timesheet record")
+                        .arg(&config_path_arg)
+                        .arg(&id_arg),
+                )
+                .subcommand(
                     SubCommand::with_name("begin")
                         .alias("start")
                         .author(crate_authors!())
@@ -297,6 +305,12 @@ fn main() {
         } else if let Some(matches) = matches.subcommand_matches("active") {
             kimai::print_active_timesheet(matches.value_of("config_path").map(|p| p.to_string()))
                 .unwrap();
+        } else if let Some(matches) = matches.subcommand_matches("status") {
+            kimai::print_timesheet_record_status(
+                matches.value_of("config_path").map(|p| p.to_string()),
+                matches.value_of("id").unwrap().parse().unwrap(),
+            )
+            .unwrap();
         } else if let Some(matches) = matches.subcommand_matches("begin") {
             kimai::print_begin_timesheet_record(
                 matches.value_of("config_path").map(|p| p.to_string()),
