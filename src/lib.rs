@@ -426,11 +426,148 @@ fn load_config(config_path: Option<String>) -> Result<Config, KimaiError> {
     }
 }
 
+/// Get all available customers
 pub async fn get_customers(
     config: &Config,
     term: Option<String>,
 ) -> Result<Vec<Customer>, KimaiError> {
     make_get_request(config, "api/customers", query!(("term", term))).await
+}
+
+/// Get all available projects
+pub async fn get_projects(
+    config: &Config,
+    customers: Option<Vec<usize>>,
+    term: Option<String>,
+) -> Result<Vec<Project>, KimaiError> {
+    make_get_request(
+        config,
+        "api/projects",
+        query!(("customers", customers), ("term", term)),
+    )
+    .await
+}
+
+/// Get all available activities
+pub async fn get_activities(
+    config: &Config,
+    projects: Option<Vec<usize>>,
+    term: Option<String>,
+) -> Result<Vec<Activity>, KimaiError> {
+    make_get_request(
+        config,
+        "api/activities",
+        query!(("projects", projects), ("term", term)),
+    )
+    .await
+}
+
+/// Get a timesheet with all it's records
+pub async fn get_timesheet(
+    config: &Config,
+    user: Option<usize>,
+    customers: Option<Vec<usize>>,
+    projects: Option<Vec<usize>>,
+    activities: Option<Vec<usize>>,
+) -> Result<Vec<TimesheetRecord>, KimaiError> {
+    // TODO: Implemnt this to get the entire timesheet records
+    make_get_request(
+        config,
+        "api/timesheets",
+        query!(
+            ("user", user),
+            ("customers", customers),
+            ("projects", projects),
+            ("activities", activities)
+        ),
+    )
+    .await
+}
+
+/// Begin a new timesheet record. If no begin time is given, the current time
+/// is used.
+pub async fn begin_timesheet_record(
+    config: &Config,
+    // TODO: find out why adding a user doesn't work
+    _user: usize,
+    project: usize,
+    activity: usize,
+    begin: DateTime<Local>,
+    description: Option<String>,
+    tags: Option<Vec<String>>,
+) -> Result<TimesheetRecord, KimaiError> {
+    let record = NewTimesheetRecord {
+        project,
+        activity,
+        begin: begin.naive_local(),
+        end: None,
+        description,
+        tags: tags.map(|t| t.join(",")),
+    };
+    make_post_request(config, "api/timesheets", record, None).await
+}
+
+/// End a given timesheet record. The current time is set as end time.
+pub async fn end_timesheet_record(
+    config: &Config,
+    id: usize,
+) -> Result<TimesheetRecord, KimaiError> {
+    make_patch_request::<Vec<String>, TimesheetRecord>(
+        config,
+        &format!("api/timesheets/{}/stop", id),
+        None,
+        None,
+    )
+    .await
+}
+
+/// Get data of the user that is making logging in to make the request.
+pub async fn get_current_user(config: &Config) -> Result<User, KimaiError> {
+    make_get_request(config, "api/users/me", None).await
+}
+
+/// Log an entire timesheet record. If no end time is given, the current time
+/// is used.
+#[allow(clippy::too_many_arguments)]
+pub async fn log_timesheet_record(
+    config: &Config,
+    // TODO: find out why adding a user doesn't work
+    _user: usize,
+    project: usize,
+    activity: usize,
+    begin: DateTime<Local>,
+    end: DateTime<Local>,
+    description: Option<String>,
+    tags: Option<Vec<String>>,
+) -> Result<TimesheetRecord, KimaiError> {
+    let record = NewTimesheetRecord {
+        project,
+        activity,
+        begin: begin.naive_local(),
+        end: Some(end.naive_local()),
+        description,
+        tags: tags.map(|t| t.join(",")),
+    };
+    make_post_request(config, "api/timesheets", record, None).await
+}
+
+pub async fn get_active_timesheet(
+    config: &Config,
+) -> Result<Vec<TimesheetRecordEntity>, KimaiError> {
+    make_get_request(&config, "api/timesheets/active", None).await
+}
+
+pub async fn get_recent_timesheet(
+    config: &Config,
+    user: Option<usize>,
+    begin: Option<DateTime<Local>>,
+) -> Result<Vec<TimesheetRecordEntity>, KimaiError> {
+    make_get_request(
+        &config,
+        "api/timesheets/recent",
+        query!(("user", user), ("begin", begin)),
+    )
+    .await
 }
 
 #[tokio::main]
@@ -451,19 +588,6 @@ pub async fn print_customers(
     table.printstd();
 
     Ok(())
-}
-
-pub async fn get_projects(
-    config: &Config,
-    customers: Option<Vec<usize>>,
-    term: Option<String>,
-) -> Result<Vec<Project>, KimaiError> {
-    make_get_request(
-        config,
-        "api/projects",
-        query!(("customers", customers), ("term", term)),
-    )
-    .await
 }
 
 #[tokio::main]
@@ -490,19 +614,6 @@ pub async fn print_projects(
     table.printstd();
 
     Ok(())
-}
-
-pub async fn get_activities(
-    config: &Config,
-    projects: Option<Vec<usize>>,
-    term: Option<String>,
-) -> Result<Vec<Activity>, KimaiError> {
-    make_get_request(
-        config,
-        "api/activities",
-        query!(("projects", projects), ("term", term)),
-    )
-    .await
 }
 
 #[tokio::main]
@@ -533,27 +644,6 @@ pub async fn print_activities(
     table.printstd();
 
     Ok(())
-}
-
-pub async fn get_timesheet(
-    config: &Config,
-    user: Option<usize>,
-    customers: Option<Vec<usize>>,
-    projects: Option<Vec<usize>>,
-    activities: Option<Vec<usize>>,
-) -> Result<Vec<TimesheetRecord>, KimaiError> {
-    // TODO: Implemnt this to get the entire timesheet records
-    make_get_request(
-        config,
-        "api/timesheets",
-        query!(
-            ("user", user),
-            ("customers", customers),
-            ("projects", projects),
-            ("activities", activities)
-        ),
-    )
-    .await
 }
 
 fn print_timesheets(records: &[TimesheetRecord]) {
@@ -656,31 +746,6 @@ fn str_to_datetime(date_str: &str) -> Result<DateTime<Local>, KimaiError> {
     }
 }
 
-pub async fn begin_timesheet_record(
-    config: &Config,
-    // TODO: find out why adding a user doesn't work
-    _user: usize,
-    project: usize,
-    activity: usize,
-    begin: DateTime<Local>,
-    description: Option<String>,
-    tags: Option<Vec<String>>,
-) -> Result<TimesheetRecord, KimaiError> {
-    let record = NewTimesheetRecord {
-        project,
-        activity,
-        begin: begin.naive_local(),
-        end: None,
-        description,
-        tags: tags.map(|t| t.join(",")),
-    };
-    make_post_request(config, "api/timesheets", record, None).await
-}
-
-pub async fn get_current_user(config: &Config) -> Result<User, KimaiError> {
-    make_get_request(config, "api/users/me", None).await
-}
-
 fn get_datetime(datetime_str: Option<String>) -> Result<DateTime<Local>, KimaiError> {
     match datetime_str {
         Some(s) => str_to_datetime(&s),
@@ -724,29 +789,6 @@ pub async fn print_begin_timesheet_record(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-pub async fn log_timesheet_record(
-    config: &Config,
-    // TODO: find out why adding a user doesn't work
-    _user: usize,
-    project: usize,
-    activity: usize,
-    begin: DateTime<Local>,
-    end: DateTime<Local>,
-    description: Option<String>,
-    tags: Option<Vec<String>>,
-) -> Result<TimesheetRecord, KimaiError> {
-    let record = NewTimesheetRecord {
-        project,
-        activity,
-        begin: begin.naive_local(),
-        end: Some(end.naive_local()),
-        description,
-        tags: tags.map(|t| t.join(",")),
-    };
-    make_post_request(config, "api/timesheets", record, None).await
-}
-
 #[tokio::main]
 #[allow(clippy::too_many_arguments)]
 pub async fn print_log_timesheet_record(
@@ -782,19 +824,6 @@ pub async fn print_log_timesheet_record(
     Ok(())
 }
 
-pub async fn end_timesheet_record(
-    config: &Config,
-    id: usize,
-) -> Result<TimesheetRecord, KimaiError> {
-    make_patch_request::<Vec<String>, TimesheetRecord>(
-        config,
-        &format!("api/timesheets/{}/stop", id),
-        None,
-        None,
-    )
-    .await
-}
-
 #[tokio::main]
 pub async fn print_end_timesheet_record(
     config_path: Option<String>,
@@ -808,12 +837,6 @@ pub async fn print_end_timesheet_record(
     Ok(())
 }
 
-pub async fn get_active_timesheet(
-    config: &Config,
-) -> Result<Vec<TimesheetRecordEntity>, KimaiError> {
-    make_get_request(&config, "api/timesheets/active", None).await
-}
-
 #[tokio::main]
 pub async fn print_active_timesheet(config_path: Option<String>) -> Result<(), KimaiError> {
     let config = load_config(config_path)?;
@@ -822,19 +845,6 @@ pub async fn print_active_timesheet(config_path: Option<String>) -> Result<(), K
     print_timesheet_entities(&records);
 
     Ok(())
-}
-
-pub async fn get_recent_timesheet(
-    config: &Config,
-    user: Option<usize>,
-    begin: Option<DateTime<Local>>,
-) -> Result<Vec<TimesheetRecordEntity>, KimaiError> {
-    make_get_request(
-        &config,
-        "api/timesheets/recent",
-        query!(("user", user), ("begin", begin)),
-    )
-    .await
 }
 
 #[tokio::main]
