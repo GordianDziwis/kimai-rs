@@ -419,7 +419,11 @@ where
         .await?)
 }
 
-fn load_config(config_path: Option<String>) -> Result<Config, KimaiError> {
+/// Load a configuration file.
+///
+/// If `config_path` is `None`, it get's loaded from the XDG configuration
+/// folder.
+pub fn load_config(config_path: Option<String>) -> Result<Config, KimaiError> {
     match config_path {
         Some(p) => Config::from_path(Path::new(&p)),
         None => Config::from_xdg(),
