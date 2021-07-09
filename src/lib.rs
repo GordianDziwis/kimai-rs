@@ -255,7 +255,7 @@ pub struct ShortActivity {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TimesheetRecord {
-    id: usize,
+    pub id: usize,
     description: Option<String>,
     begin: DateTime<Local>,
     end: Option<DateTime<Local>>,
