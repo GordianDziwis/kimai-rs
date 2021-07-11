@@ -540,7 +540,7 @@ pub async fn log_timesheet_record(
     project: usize,
     activity: usize,
     begin: DateTime<Local>,
-    end: DateTime<Local>,
+    end: Option<DateTime<Local>>,
     description: Option<String>,
     tags: Option<Vec<String>>,
 ) -> Result<TimesheetRecord, KimaiError> {
@@ -548,7 +548,7 @@ pub async fn log_timesheet_record(
         project,
         activity,
         begin: begin.naive_local(),
-        end: Some(end.naive_local()),
+        end: end.map(|e| e.naive_local()),
         description,
         tags: tags.map(|t| t.join(",")),
     };
@@ -771,6 +771,15 @@ fn get_datetime(datetime_str: Option<String>) -> Result<DateTime<Local>, KimaiEr
     }
 }
 
+fn get_datetime_option(
+    datetime_str: Option<String>,
+) -> Result<Option<DateTime<Local>>, KimaiError> {
+    match datetime_str {
+        Some(s) => Ok(Some(str_to_datetime(&s)?)),
+        None => Ok(None),
+    }
+}
+
 #[tokio::main]
 pub async fn print_begin_timesheet_record(
     config_path: Option<String>,
@@ -826,7 +835,7 @@ pub async fn print_log_timesheet_record(
         project,
         activity,
         str_to_datetime(&begin)?,
-        get_datetime(end)?,
+        get_datetime_option(end)?,
         description,
         tags,
     )
