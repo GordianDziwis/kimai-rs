@@ -12,12 +12,11 @@ follows:
 
 ```toml
 host = "HOST_DOMAIN"
-user = "USERNAME"
-password = "PASSWORD"
+token = "TOKEN"
 ```
 
-Passwords can be either stored in plain text in the configuration file, or read
+Tokens can be either stored in plain text in the configuration file, or read
 from [`pass`](https://www.passwordstore.org/). For the later, the path within
 `pass` needs to be stored in `pass_path` within the configuration file. Also
-the `password` parameter needs to be omitted, since a plain text password takes
-preferred to a password in pass.
+the `token` parameter needs to be omitted, since a plain text token takes
+preferred to a token in pass.

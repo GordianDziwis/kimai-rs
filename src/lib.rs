@@ -133,45 +133,40 @@ impl From<chrono::format::ParseError> for KimaiError {
 #[derive(Debug, Deserialize)]
 struct ConfigFile {
     host: String,
-    user: String,
-    password: Option<String>,
+    token: Option<String>,
     pass_path: Option<String>,
 }
 
 #[derive(Debug)]
 pub struct Config {
     host: String,
-    user: String,
-    password: String,
+    token: String,
 }
 
 impl Config {
-    pub fn new(host: String, user: String, password: String) -> Self {
+    pub fn new(host: String, token: String) -> Self {
         Config {
             host,
-            user,
-            password,
+            token,
         }
     }
     pub fn from_path(path: &Path) -> Result<Self, KimaiError> {
         let config_string = fs::read_to_string(path)?;
         let config_file = toml::from_str::<ConfigFile>(&config_string)?;
-        if let Some(p) = config_file.password {
+        if let Some(t) = config_file.token {
             Ok(Config {
                 host: config_file.host,
-                user: config_file.user,
-                password: p,
+                token: t,
             })
         } else if let Some(p) = config_file.pass_path {
             let pass_cmd = Command::new("pass").arg(p).output()?;
             Ok(Config {
                 host: config_file.host,
-                user: config_file.user,
-                password: std::str::from_utf8(&pass_cmd.stdout)?.trim().into(),
+                token: std::str::from_utf8(&pass_cmd.stdout)?.trim().into(),
             })
         } else {
             Err(KimaiError::Config(
-                "No password give in config!".to_string(),
+                "No token give in config!".to_string(),
             ))
         }
     }
@@ -327,13 +322,10 @@ pub struct TimesheetRecordEntity {
 
 fn get_headers(config: &Config) -> Result<header::HeaderMap, KimaiError> {
     let mut headers = header::HeaderMap::new();
+    let auth_value = format!("Bearer {}", config.token);
     headers.insert(
-        HeaderName::from_static("x-auth-user"),
-        HeaderValue::from_str(&config.user).unwrap(),
-    );
-    headers.insert(
-        HeaderName::from_static("x-auth-token"),
-        HeaderValue::from_str(&config.password).unwrap(),
+        HeaderName::from_static("authorization"),
+        HeaderValue::from_str(&auth_value).unwrap(),
     );
     Ok(headers)
 }
